@@ -1,0 +1,213 @@
+---
+title: "Saint Louis Housing Data"
+author: "Shraddha Belbase"
+date:"December 13, 2018s"
+output: html_notebook
+---
+
+#Loading Libraries
+```{r message=TRUE, warning=FALSE, paged.print=FALSE}
+#hsdbhfb
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(broom)
+# Vector Manipulation
+library(stringr)
+library(lubridate)
+library(forcats)
+# Presentation
+library(ggplot2)
+library(GGally)
+library(ggthemes)
+library(scales)
+library(texreg)
+
+```
+
+#Importing the DataSet
+```{r}
+data_cocs <- read_csv("data/stl_county_sales.csv")
+```
+
+#Missing Obervations
+Before starting analyzing our data, let's if there are any Missing Observations in our dataset.
+```{r}
+pdat <- data_cocs %>%
+  summarize_all (
+    funs(sum(is.na(.)))
+) %>%
+  gather(
+    vars, isna_cnts
+  )
+ knitr::kable(pdat)
+```
+
+```{r}
+data_new <- data_cocs %>%
+  mutate(id_zip = as.character(id_zip),
+         date_trans = mdy(date_trans),
+         #date_year = year(date_trans),
+         id_division = if_else(id_market == "East70", "East70", "County Remainder"),
+         resid = log(appr)-log(price_trans))
+ 
+```
+Looks like we do not have any Missing Observations in our dataset.
+```{r}
+model <- lm(resid ~ as.character(year(date_trans)) + age + I(age^2) + I(age^3) + log(area)+ log(sfla) + id_division, data = data_new)
+summary(model)
+```
+
+#Missing Observations?
+Are there any missing observations in the dataset?
+```{r}
+ ggplot(data = data_new)+
+   geom_bar(mapping = aes(x = id_market))+
+   labs(
+    title = "Housing Sale Distribution in different Areas",
+    x = "ID", y ="Count"
+  
+    )
+```
+This shows that the most amount of houses were sold in the South of Saint Louis and the least in East70.
+#Transations by age
+Lets plot a density plot to see the corelation between age of the house and the transaction
+```{r}
+ ggplot(data = data_new, aes(x = age)) +
+  geom_density()
+```
+
+This shows that the houses between the age 30 to 60 have a higher transaction density compared to other ages.
+
+#East 70
+Lets now observe the data in East70 and analyze the housing patterns in this area.
+First off, lets start by filtering data. The code below filters the data and gets the only ones from East70
+```{r}
+data_update <- data_new %>%
+  filter (id_division == "East70")%>%
+mutate(
+    date_year = year(date_trans))
+
+```
+Let's now look at the box plot
+```{r}
+data_update <- data_new %>%
+  filter (id_division == "East70")%>%
+mutate(
+    date_year = year(date_trans))
+
+pdat <- data_update %>%
+  group_by(date_year)
+ 
+
+ggplot(pdat, aes(as.character(date_year),log(price_trans))) +
+  geom_boxplot()+
+  #geom_line()+
+ 
+  labs(
+    title = "",
+    x = "", y =""
+  )
+
+```
+```{r}
+pdat <- data_update %>%
+  nest(
+    -date_year
+  ) %>%
+  mutate(
+    Quantiles = map(data, ~quantile(.$area))
+  ) %>%
+  unnest(
+    map(Quantiles, tibble::enframe)
+  ) %>%
+  mutate(
+    name = factor(name, levels = c("0%", "25%", "50%", "75%", "100%"))
+  ) %>%
+  arrange(
+    date_year
+    )%>%
+  spread(
+    name, value
+    )
+
+knitr::kable(pdat, digits = 3)
+```
+
+```{r}
+pdat <- data_update %>%
+  nest(
+    -date_year
+  ) %>%
+  mutate(
+    Quantiles = map(data, ~quantile(.$sfla))
+  ) %>%
+  unnest(
+    map(Quantiles, tibble::enframe)
+  ) %>%
+  mutate(
+    name = factor(name, levels = c("0%", "25%", "50%", "75%", "100%"))
+  ) %>%
+  arrange(
+    date_year
+    )%>%
+  spread(
+    name, value
+    )
+
+knitr::kable(pdat, digits = 0)
+  
+```
+
+```{r}
+pdat <- data_update %>%
+  nest(
+    -date_year
+  ) %>%
+  mutate(
+    Quantiles = map(data, ~quantile(.$sfla))
+  ) %>%
+  unnest(
+    map(Quantiles, tibble::enframe)
+  ) %>%
+  mutate(
+    name = factor(name, levels = c("0%", "25%", "50%", "75%", "100%"))
+  ) %>%
+  arrange(
+    date_year
+    )%>%
+  spread(
+    name, value
+    )
+
+knitr::kable(pdat, digits = 0)
+  
+  
+```
+
+
+
+```{r}
+pdat <- data_new %>%
+  group_by(id_division, date_trans)%>%
+  count(date_trans)
+
+ ggplot(pdat, aes(date_trans,n,colour = id_division))+
+  geom_smooth()+
+  theme_hc() + scale_colour_hc()
+  
+ 
+```
+
+```{r}
+pdat <- data_new %>%
+  mutate(
+    date_year = year(date_trans)
+  )
+ 
+
+ggplot(pdat, aes(as.character(date_year),log(price_trans))) +
+  geom_boxplot() +
+  labs(x = NULL, y =NULL)
+```
+Mean is increasing till 2008 and slightly decreasing in 2009 and going back again.
